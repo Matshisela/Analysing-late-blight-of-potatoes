@@ -14,7 +14,7 @@ library(agricolae)
 library(tidyverse)
 library(metan)
 library(outliers)
-
+library(ggpubr)
 
 
 # Loading data ------------------------------------------------------------
@@ -53,6 +53,32 @@ ggplot(potatoe_data, aes(x=relative)) +
 
 ggsave("relative AUDPC.png")
 
+#Normality test
+ggqqplot(potatoe_data$relative)
+
+shapiro.test(potatoe_data$relative)
+
+#Density plot
+ggdensity(potatoe_data, x = "relative",
+          add = "mean", rug = TRUE,
+          color = "Locality", fill = "Locality",
+          palette = c("#00AFBB", "#E7B800"))+
+  geom_text(data = aggregate(relative~ Locality, data = potatoe_data, FUN = mean),
+            aes(x = relative, y = Inf, color = Locality, label = round(relative,2)), 
+            vjust = 1) + geom_vline(xintercept =  median(potatoe_data$relative))
+
+ggsave("Density plot by location.png")
+
+#Violin Plot
+my_comparisons <- list( c("Comas", "Oxapampa") )
+ggviolin(potatoe_data, x = "Locality", y = "AUDPC", fill = "Locality",
+         palette = c("#00AFBB", "#E7B800"),
+         add = "boxplot", add.params = list(fill = "white"))+
+  stat_compare_means(comparisons = my_comparisons, label = "p.signif")+ # Add significance levels
+  stat_compare_means(label.y = 50)                                      # Add global the p-value 
+
+ggsave("Violin plot and Wilcoxon test.png")
+
 #summarise data
 
 potatoe_data %>%
@@ -63,10 +89,24 @@ potatoe_data %>%
 grubbs.test(potatoe_data$relative) #No significant outliers
 
 
-#Single site analysis
 
+# Single site analysis ----------------------------------------------------
 
-#Multi site analysis
-model <- with(potatoe_data, AMMI(Locality, Genotype, Rep, relative, )) #Not possible 
+#Model 1
+model1 <- aov(relative ~ Genotype + Row + Rep, data = potatoe_data)
+model1 #Residual SE = 0.1205
+summary(model1)
 
-plot(model,0,1,angle=20,ecol="brown")
+plot(model1)
+
+#Including covariate
+model2 <- aov(relative ~ Nplant + Genotype + Row + Rep, data = potatoe_data)
+model2 #Residual SE = 0.1174
+summary(model2)
+
+plot(model2)
+
+#Genotype * Environment
+model3 <- aov(relative ~ Nplant + Locality + Rep + (1|Genotype) + 
+                (1|Genotype:Row), data = potatoe_data )
+
